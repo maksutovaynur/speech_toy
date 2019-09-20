@@ -3,7 +3,7 @@
 import argparse
 import os
 import sys
-import subprocess
+import subprocess as S
 from generate_speech import norm_text
 
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir))
@@ -28,9 +28,11 @@ if __name__ == "__main__":
         choices = [norm_text(l.split("-", 1)[-1]) for l in initial_lst]
         choice_names = [f"music_names/{i}.wav" for i in choices]
         print(f"CHOICE NAMES: {choice_names}")
+        pr = []
         for c, n in zip(choices, choice_names):
-            subprocess.call([sc('generate_speech.py'), "--redo", "-t", f"'{c}'", "-o", n])
+            pr.append(S.Popen([sc('generate_speech.py'), "--redo", "-t", f"'{c}'", "-o", n], stdout=S.PIPE))
         os.system("mplayer -speed 1.3 sounds_synt/options.wav")
+        for p in pr: p.stdout.read()
         os.system("mplayer -speed 1.3 " + " sounds_synt/or.wav ".join([f"'{c}'" for c in choice_names]))
         os.system(f"{sc('record_speech.py')} -d 0 -t 3 -o {r('tmp.choice.result.wav')}")
         os.system(f"{sc('speech_reco.py')} --redo -i {r('tmp.choice.result.wav')} -o {r('tmp.choice.result.reco')}")
