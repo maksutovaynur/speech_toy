@@ -2,11 +2,16 @@ import requests
 
 
 def send_cmd(ip, val):
+    if ip is None: return
     requests.get(f'http://{ip}/?__CMD={val}')
 
 
 def start_dance(ip):
     send_cmd(ip, '+')
+
+
+def shake(ip):
+    send_cmd(ip, '1')
 
 
 def stop_dance(ip):

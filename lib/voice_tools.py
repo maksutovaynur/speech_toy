@@ -15,8 +15,10 @@ log.setLevel(logging.DEBUG)
 rec = Recognizer()
 EXSPEECH = {}
 MIC_RATE = 48000
+import pyaudio
+p = pyaudio.PyAudio()
 
-
+# open stream (2)
 mic = Microphone(sample_rate=MIC_RATE)
 
 stemmer = Mystem()
@@ -43,6 +45,8 @@ def speed_change(sound, speed=1.0):
 
 
 SOUNDS = path.join(path.dirname(__file__), path.pardir, 'sounds')
+
+
 def get_sound_path(name):
     return path.join(SOUNDS, f"{name}.wav")
 
@@ -121,16 +125,29 @@ def ydx_secret_key_lazy():
 
 def listen(time_limit=2, mic=mic):
     log.info("Start recording")
-    with mic as source:
-        audio = rec.listen(source, phrase_time_limit=time_limit)
+    # with mic as source:
+    #     audio = rec.listen(source, phrase_time_limit=time_limit)
+    stream = p.open(format=pyaudio.paInt16,
+                    channels=1,
+                    rate=MIC_RATE,
+                    input=True,
+                    frames_per_buffer=MIC_RATE*1)
+    audio = AudioData(stream.read(time_limit*MIC_RATE), sample_rate=MIC_RATE, sample_width=2)
+    # with  as source:
+    #     audio = rec.record(source)
     log.info("Stop recording")
+    stream.stop_stream()
+    stream.close()
+
     return audio
 
 
 if __name__=="__main__":
     audio = listen(2)
+    print(audio)
     if audio is None: exit(0)
     p = get_player(audio, 1.2)
+    save_audio(audio, 'tmp.wav')
     time.sleep(0.5)
     p.stop()
     time.sleep(1)

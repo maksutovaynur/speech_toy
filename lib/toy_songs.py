@@ -1,6 +1,7 @@
 import multiprocessing as P
 from datetime import datetime
 from os import path, listdir
+from lib.wifitools import start_dance, stop_dance, shake
 
 
 from lib import voice_tools as V
@@ -45,13 +46,18 @@ def stat_read(file_name):
 import subprocess as SP
 
 
-def text_processor(texts: P.Queue, lock: P.Lock):
+def text_processor(texts: P.Queue, lock: P.Lock, ip: str):
     state = 'initial'
-    start_words = ['песня', 'песенка', 'включить', 'включать']
-    stop_words = ['выключить', 'выключать', 'стоп', 'хватит', 'хватать', 'хватить', 'молчать', 'замолчать',
-                  'дура', 'придурок', 'стоять', 'хорошо', 'хороший']
-    start_words = [S.lemm(w)[0] for w in start_words]
-    stop_words = [S.lemm(w)[0] for w in stop_words]
+    start_words = ['песня', 'песенка', 'включить', 'включать', 'петь', 'спой', 'включи', 'музыка']
+    stop_words = ['выключи', 'выключать', 'стоп', 'хватит', 'хватать', 'хватить', 'молчать', 'замолчать',
+                  'дура', 'придурок', 'стоять', 'хорош', 'харош', 'хорошо', 'всё', 'все', 'хватит']
+    switch_off = ['пока', 'до свидания', 'спать', 'спи']
+    dance_words = ['спляши', 'пляши', 'танцуй', 'станцуй', 'потанцуй', 'помаши', 'флекс', 'судорога', 'конвульсии',
+                   'движ', 'двигаться', 'движение', 'трясись', 'слэм', 'станция', 'поцелуй', 'маши']
+    start_words, stop_words, switch_off, dance_words = [[S.lemm(w)[0] for w in j] for j in
+                                                        (start_words, stop_words, switch_off, dance_words)]
+
+    state_dance = 'off'
     print(start_words, stop_words)
     music_names = list_music_names()
     stat_path = {i: get_stat_path(i) for i in music_names}
@@ -99,12 +105,23 @@ def text_processor(texts: P.Queue, lock: P.Lock):
             state = 'song'
 
         elif state == 'song':
-            for w in stop_words:
+            pass
+
+        if state_dance == 'off':
+            for w in dance_words:
                 if w in l:
-                    state = 'initial'
-                    if MusicPlay is not None:
-                        MusicPlay.kill()
+                    state_dance = 'on'
+                    start_dance(ip)
                     break
+
+        for w in stop_words:
+            if w in l:
+                state = 'initial'
+                if MusicPlay is not None:
+                    MusicPlay.kill()
+                stop_dance(ip)
+                state_dance = 'off'
+                break
 
 
 def init_phrases():
@@ -121,14 +138,16 @@ def init_phrases():
 
 
 if __name__=="__main__":
+    import sys
+    ip = sys.argv[1] if len(sys.argv) > 0 else None
     # print(V.Microphone.list_microphone_names())
-    # mic = V.Microphone(sample_rate=V.MIC_RATE, device_index=V.Microphone.list_microphone_names().index('sysdefault'))
+    # mic = V.Microphone(sample_rate=V.MIC_RATE)
     init_phrases()
-    V.adjust_noise(2)
+    # V.adjust_noise(2)
     V.get_player(V.gen_speech('как тебя зовут?')).wait_done()
     name = None
     while name is None:
-        audio = V.listen(2)
+        audio = V.listen(1)
         if audio is None: continue
         name = V.yandex_recognize(audio)
         if isinstance(name, str) and len(name.strip())==0:
@@ -139,13 +158,14 @@ if __name__=="__main__":
     p.wait_done()
 
     V.get_player(V.gen_speech('привет')).wait_done()
+    shake(ip)
     V.get_player(name_audio).wait_done()
 
     V.get_player(V.gen_speech('я умею петь песенки, если попросишь')).wait_done()
 
     texts = P.Queue(maxsize=1024)
     lock = P.Lock()
-    worker = P.Process(target=text_processor, kwargs=dict(texts=texts, lock=lock))
+    worker = P.Process(target=text_processor, kwargs=dict(texts=texts, lock=lock, ip=ip))
     worker.start()
     try:
         while True:
@@ -159,3 +179,4 @@ if __name__=="__main__":
     except KeyboardInterrupt: pass
 
     worker.join()
+    stop_dance(ip)
