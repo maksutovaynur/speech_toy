@@ -15,7 +15,11 @@ from list_music import list_from_dir
 
 
 def stat_read(file_name):
-    return {j[0]: int(j[1]) for j in [i.split(" ", 1) for i in open(file_name, 'r').read().strip().split("\n")]}
+    text = open(file_name, 'r').read().split("\n")
+    try:
+        return {j[0]: int(j[1]) for j in [i.split(" ", 1) for i in text] if len(j) > 1}
+    except Exception as e:
+        log.error(f"err with TEXT <{text}>: {e}")
 
 
 def norm_stat(kw):
@@ -72,25 +76,26 @@ def crop_list(lst, dim_factor=0.9, max_sec=5):
 if __name__ == "__main__":
     base_path = os.path.join(os.path.dirname(__file__), os.path.pardir)
     par = argparse.ArgumentParser()
-    par.add_argument("--speech-text-file", "-t", type=str, default='tmp.txt')
-    par.add_argument("--speech-stat-file", "-s", type=str, default='tmp.stat')
+    par.add_argument("--speech-text-file", "-t", type=str, default='artefacts/request.txt')
+    par.add_argument("--speech-stat-file", "-s", type=str, default='artefacts/request.stat')
     par.add_argument("--stat-file", "-dd", type=str, default=None)
-    par.add_argument("--stat-dir", "-d", type=str, default=os.path.join(base_path, "recognized_stat"))
-    par.add_argument("--stat-format", "-f", type=str, default='stat')
+    par.add_argument("--stat-dir", "-d", type=str, default="recognized_stat")
+    par.add_argument("--stat-ext", "-f", type=str, default='rec.stat')
     par.add_argument("--dim-factor", "-g", type=float, default=0.7)
     par.add_argument("--max-seq", "-m", type=int, default=5)
-    par.add_argument("--output", "-o", type=str, default='tmp.cand')
+    par.add_argument("--output", "-o", type=str, default='artefacts/request.cand')
     args = par.parse_args(sys.argv[1:])
     if args.stat_file is None:
-        names = list_from_dir(args.stat_dir, args.stat_format)
+        names = list_from_dir(args.stat_dir, args.stat_ext)
     else:
         names = open(args.stat_file, 'r').read().strip().split("\n")
-    # log.debug(f"names {names}")
+    log.debug(f"names {names}")
     texts = {i: stat_read(os.path.join(args.stat_dir, i)) for i in names}
-    # log.debug(f"texts {texts}")
+    log.debug(f"texts {texts}")
     nsp = norm_stat(stat_read(args.speech_stat_file))
     scores = sorted([(i, sum_stat(multiply2stats(nsp, norm_stat(v)))) for i, v in texts.items()], key=lambda x: - x[1])
     print(f"You entered: '{text_read(args.speech_text_file)}'")
-    best = scores[:crop_list([x[1] for x in scores], dim_factor=args.dim_factor, max_sec=args.max_seq)]
+    choice = crop_list([x[1] for x in scores], dim_factor=args.dim_factor, max_sec=args.max_seq)
+    best = scores[:max(choice, 1)]
     # print(best)
     open(args.output, 'w').write("\n".join(".".join(x[0].split(".", 2)[:2]) for x in best))

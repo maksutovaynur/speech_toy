@@ -14,26 +14,30 @@ log.setLevel(logging.DEBUG)
 
 def record_speech(device_index, time_limit, output_name):
     recognizer = sr.Recognizer()
-    microphone = sr.Microphone(device_index=device_index)
+    microphone = sr.Microphone(device_index=device_index, sample_rate=44100)
 
     log.info("Measure noise")
     with microphone as source:
         recognizer.adjust_for_ambient_noise(source)
-
+    # recognizer.energy_threshold = 50
+    # recognizer.dynamic_energy_threshold = False
     log.info("Start recording")
-    os.system("mplayer -speed 1.3 sounds_synt/start.wav")
+    os.system("mplayer -speed 1.2 sounds_synt/start.wav")
     with microphone as source:
         audio = recognizer.listen(source, phrase_time_limit=time_limit)
     log.info("Stop recording")
-    os.system("mplayer -speed 1.3 sounds_synt/end.wav")
-    open(output_name, 'wb').write(audio.get_wav_data())
+    os.system("mplayer -speed 1.2 sounds_synt/end.wav")
+    open(output_name, 'wb').write(audio.get_wav_data(convert_rate=44100,
+                                                     convert_width=microphone.SAMPLE_WIDTH))
 
 
 if __name__ == "__main__":
     par = argparse.ArgumentParser()
     par.add_argument("--device", "-d", type=int, default=0)
-    par.add_argument("--output", "-o", type=str, required=True)
-    par.add_argument("--time-limit", "-t", type=int, default=2)
+    par.add_argument("--output", "-o", type=str, default="tmp.wav")
+    par.add_argument("--time-limit", "-t", type=int, default=3)
+    par.add_argument("--start-speech", "-s", type=str, default=None)
+    par.add_argument("--end-speech", "-e", type=str, default=None)
 
     args = par.parse_args(sys.argv[1:])
 

@@ -6,7 +6,9 @@ import sys
 
 
 def list_from_dir(dirpath, format='mp3'):
-    return [i for i in os.listdir(dirpath) if i.endswith(format)]
+    dir_listed = os.listdir(dirpath)
+    print("Dir listed", dir_listed)
+    return [i for i in dir_listed if i.endswith(format)]
 
 
 if __name__ == "__main__":

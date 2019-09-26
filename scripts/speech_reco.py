@@ -60,8 +60,8 @@ def do_recognition(file_name):
 
 if __name__ == "__main__":
     par = argparse.ArgumentParser()
-    par.add_argument("--input", "-i", type=str, default="tmp.wav")
-    par.add_argument("--output", "-o", type=str, default="tmp.txt")
+    par.add_argument("--input", "-i", type=str, default="artefacts/request.wav")
+    par.add_argument("--output", "-o", type=str, default="artefacts/request.txt")
     par.add_argument("--redo", action="store_true")
     args = par.parse_args(sys.argv[1:])
 
