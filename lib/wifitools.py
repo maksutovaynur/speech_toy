@@ -1,9 +1,13 @@
 import requests
 
 
+requests.adapters.DEFAULT_RETRIES = 1
+
+
 def send_cmd(ip, val):
     if ip is None: return
-    requests.get(f'http://{ip}/?__CMD={val}')
+    try: requests.get(f'http://{ip}/?__CMD={val}')
+    except: pass
 
 
 def start_dance(ip):
