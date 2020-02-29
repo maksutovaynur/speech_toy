@@ -8,11 +8,18 @@ from lib import voice_tools as V
 from lib import stats as S
 
 
-def recognize_parallel(audio, texts):
+from datetime import datetime, timedelta
+INACTIVE_AFTER_COMMAND = timedelta(seconds=3)
+TOO_OLD = timedelta(seconds=6)
+
+
+def recognize_parallel(audio, texts, dttm):
     res = V.yandex_recognize(audio)
     if res is not None:
-        if res.strip() != '':
-            texts.put(res)
+        if res.strip() == '':
+            res = None
+
+    texts.put((res, dttm))
 
 
 BASE_NAME = path.join(path.dirname(__file__), path.pardir)
@@ -46,11 +53,12 @@ def stat_read(file_name):
 import subprocess as SP
 
 
-def text_processor(texts: P.Queue, lock: P.Lock, ip: str):
+def text_processor(texts: P.Queue, lock: P.Lock, ip: str, dur: P.Queue):
+    INACTIVE_DTTM = datetime.now()
     state = 'initial'
     start_words = ['песня', 'песенка', 'включить', 'включать', 'петь', 'спой', 'включи', 'музыка']
     stop_words = ['выключи', 'выключать', 'стоп', 'хватит', 'хватать', 'хватить', 'молчать', 'замолчать',
-                  'дура', 'придурок', 'стоять', 'хорош', 'харош', 'хорошо', 'всё', 'все', 'хватит']
+                  'дура', 'придурок', 'стоять', 'хорош', 'харош', 'хорошо', 'всё', 'все', 'хватит', 'перестань']
     switch_off = ['пока', 'до свидания', 'спать', 'спи']
     dance_words = ['спляши', 'пляши', 'танцуй', 'станцуй', 'потанцуй', 'помаши', 'флекс', 'судорога', 'конвульсии',
                    'движ', 'двигаться', 'движение', 'трясись', 'слэм', 'станция', 'поцелуй', 'маши']
@@ -71,13 +79,17 @@ def text_processor(texts: P.Queue, lock: P.Lock, ip: str):
             if state != 'song':
                 Play.stop()
                 Play = None
-        m = texts.get()
+        m, dttm = texts.get()
+        if m is None: continue
+        now = datetime.now()
+        if now > dttm + TOO_OLD: continue
+        if now < INACTIVE_DTTM: continue
         ms = []
-        while True:
-            try: v = texts.get_nowait()
-            except: v = None
-            if v is None: break
-            ms.append(v)
+        # if state != 'song':
+        #     while True:
+        #         v = texts.get()
+        #         if v is None: break
+        #         ms.append(v)
         t = " ".join([m] + ms)
         if len(t.strip()) == 0: continue
         l = S.lemm(t)
@@ -94,6 +106,8 @@ def text_processor(texts: P.Queue, lock: P.Lock, ip: str):
                     with lock:
                         p = SP.Popen(['mplayer', '-speed', '1.2', 'voice.wav'])
                         p.wait()
+
+                    INACTIVE_DTTM = now + INACTIVE_AFTER_COMMAND
                     break
         elif state == 'select':
             kw = S.norm_stat(S.keywords(l, remove_commons=False))
@@ -104,6 +118,9 @@ def text_processor(texts: P.Queue, lock: P.Lock, ip: str):
             # Play = V.get_player(music)
             state = 'song'
 
+            INACTIVE_DTTM = now + INACTIVE_AFTER_COMMAND
+            dur.put(0.9)
+
         elif state == 'song':
             pass
 
@@ -111,17 +128,23 @@ def text_processor(texts: P.Queue, lock: P.Lock, ip: str):
             for w in dance_words:
                 if w in l:
                     state_dance = 'on'
+
+                    INACTIVE_DTTM = now + INACTIVE_AFTER_COMMAND
                     start_dance(ip)
                     break
 
         for w in stop_words:
             if w in l:
                 state = 'initial'
+
+                INACTIVE_DTTM = now + INACTIVE_AFTER_COMMAND
                 if MusicPlay is not None:
                     MusicPlay.kill()
+                dur.put(2)
                 stop_dance(ip)
                 state_dance = 'off'
                 break
+
 
 
 def init_phrases():
@@ -164,16 +187,24 @@ if __name__=="__main__":
     V.get_player(V.gen_speech('я умею петь песенки, если попросишь')).wait_done()
 
     texts = P.Queue(maxsize=1024)
+    duration = P.Queue(maxsize=32)
     lock = P.Lock()
-    worker = P.Process(target=text_processor, kwargs=dict(texts=texts, lock=lock, ip=ip))
+    worker = P.Process(target=text_processor, kwargs=dict(texts=texts, lock=lock, ip=ip, dur=duration))
     worker.start()
+
+    INITIAL_DURATION = 2
     try:
         while True:
             with lock:
-                audio = V.listen(2)
+                try: duration = duration.get_nowait()
+                except: duration = None
+                if duration is not None:
+                    INITIAL_DURATION = duration
+                dttm = datetime.now()
+                audio = V.listen(INITIAL_DURATION)
             if audio is None:continue
             open('request.wav', 'wb').write(audio.get_wav_data(audio.sample_rate, audio.sample_width))
-            p = P.Process(target=recognize_parallel, kwargs=dict(audio=audio, texts=texts))
+            p = P.Process(target=recognize_parallel, kwargs=dict(audio=audio, texts=texts, dttm=dttm))
             p.start()
             print(datetime.now())
     except KeyboardInterrupt: pass

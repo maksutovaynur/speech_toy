@@ -72,7 +72,7 @@ if __name__=="__main__":
     try:
         while True:
             # with lock:
-            audio = V.listen(2)
+            audio = V.listen(0.9)
             if audio is None: continue
             open('request.wav', 'wb').write(audio.get_wav_data(audio.sample_rate, audio.sample_width))
             t = V.yandex_recognize(audio)

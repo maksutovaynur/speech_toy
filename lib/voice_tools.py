@@ -132,7 +132,7 @@ def listen(time_limit=2, mic=mic):
                     rate=MIC_RATE,
                     input=True,
                     frames_per_buffer=MIC_RATE*1)
-    audio = AudioData(stream.read(time_limit*MIC_RATE), sample_rate=MIC_RATE, sample_width=2)
+    audio = AudioData(stream.read(int(time_limit*MIC_RATE)), sample_rate=MIC_RATE, sample_width=2)
     # with  as source:
     #     audio = rec.record(source)
     log.info("Stop recording")
